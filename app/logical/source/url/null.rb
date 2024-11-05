@@ -123,8 +123,6 @@ class Source::URL::Null < Source::URL
       "Kirby's Comic Art"
     in _, "kirumade.com"
       "Kiru Made"
-    in _, "kemono.party"
-      "Kemono Party"
     in _, "last.fm"
       "Last.fm"
     in _, "mangaz.com"
