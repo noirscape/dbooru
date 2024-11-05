@@ -70,7 +70,6 @@ class Post < ApplicationRecord
   before_save :has_enough_tags
   before_save :update_tag_post_counts
   before_save :update_tag_category_counts
-  before_create :autoban
   after_save :create_version
   after_save :update_parent_on_save
   after_save :apply_post_metatags
@@ -294,7 +293,7 @@ class Post < ApplicationRecord
     end
 
     def is_approvable?(user = CurrentUser.user)
-      !is_active? && uploader != user
+      (!is_active? && uploader != user) || user.is_admin?
     end
 
     def autoban
