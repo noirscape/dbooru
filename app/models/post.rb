@@ -70,6 +70,7 @@ class Post < ApplicationRecord
   before_save :has_enough_tags
   before_save :update_tag_post_counts
   before_save :update_tag_category_counts
+  before_create :autoban
   after_save :create_version
   after_save :update_parent_on_save
   after_save :apply_post_metatags
@@ -114,9 +115,7 @@ class Post < ApplicationRecord
   scope :has_notes, -> { where.not(last_noted_at: nil) }
   scope :for_user, ->(user_id) { where(uploader_id: user_id) }
 
-  if PostVersion.enabled?
-    has_many :versions, -> { Rails.env.test? ? order("post_versions.updated_at ASC, post_versions.id ASC") : order("post_versions.updated_at ASC") }, class_name: "PostVersion", dependent: :destroy
-  end
+  has_many :versions, -> { Rails.env.test? ? order("post_versions.updated_at ASC, post_versions.id ASC") : order("post_versions.updated_at ASC") }, class_name: "PostVersion", dependent: :destroy
 
   def self.new_from_upload(upload_media_asset, tag_string: nil, rating: nil, parent_id: nil, source: nil, artist_commentary_title: nil, artist_commentary_desc: nil, translated_commentary_title: nil, translated_commentary_desc: nil, is_pending: nil, add_artist_tag: false)
     upload = upload_media_asset.upload
@@ -409,7 +408,7 @@ class Post < ApplicationRecord
 
     # XXX should be a `validate` hook instead of `before_validation` hook
     def validate_new_tags
-      return if CurrentUser.user.nil? || CurrentUser.user.is_builder?
+      return if CurrentUser.user.is_builder?
 
       new_tags = post_edit.effective_added_tag_names.select { |name| !Tag.exists?(name: name) }
 
@@ -879,7 +878,11 @@ class Post < ApplicationRecord
     # changes to the post and make saved_change_to_*? return false.
     def create_version(force = false)
       if new_record? || saved_change_to_watched_attributes? || force
-        create_new_version
+        if merge_version?
+          merge_version
+        else
+          create_new_version
+        end
       end
     end
 
@@ -888,13 +891,70 @@ class Post < ApplicationRecord
     end
 
     def merge_version?
-      prev = versions.last
-      prev && prev.updater_id == CurrentUser.user.id && prev.updated_at > 1.hour.ago
+      previous = versions.last
+      previous && previous.updater_id == CurrentUser.user.id && previous.updated_at > 1.hour.ago
     end
 
+    def merge_version
+      subject = versions.last
+      previous = subject.previous
+
+      if previous
+        added_tags = tag_array - previous.tag_array
+        removed_tags = previous.tag_array - tag_array
+      else
+        added_tags = tag_array
+        removed_tags = []
+      end
+
+      rating_changed = previous.nil? || rating != previous.rating
+      parent_changed = previous.nil? || parent_id != previous.parent_id
+      source_changed = previous.nil? || source != previous.source
+
+      subject.update(
+        tags: tag_array.join(" "),
+        added_tags: added_tags,
+        removed_tags: removed_tags,
+        updater_id: CurrentUser.id,
+        rating: rating,
+        rating_changed: rating_changed,
+        parent_id: parent_id,
+        parent_changed: parent_changed,
+        source: source,
+        source_changed: source_changed,
+      )
+    end
+
+    def calculate_version
+      1 + versions.maximum(:version).to_i
+    end
+
+
     def create_new_version
-      User.where(id: CurrentUser.id).update_all("post_update_count = post_update_count + 1")
-      PostVersion.queue(self) if PostVersion.enabled?
+      previous = versions.last
+
+      if previous
+        added_tags = tag_array - previous.tag_array
+        removed_tags = previous.tag_array - tag_array
+      else
+        added_tags = tag_array
+        removed_tags = []
+      end
+
+      PostVersion.create(
+        post_id: id,
+        tags: tag_array.join(" "),
+        added_tags: added_tags,
+        removed_tags: removed_tags,
+        updater_id: CurrentUser.id,
+        rating: rating,
+        rating_changed: saved_change_to_rating?,
+        parent_id: parent_id,
+        parent_changed: saved_change_to_parent_id?,
+        source: source,
+        source_changed: saved_change_to_source?,
+        version: calculate_version,
+      )
     end
 
     def revert_to(target)
@@ -1833,7 +1893,7 @@ class Post < ApplicationRecord
     end
 
     def validate_changed_tags
-      return if CurrentUser.user.nil? || uploader == CurrentUser.user || CurrentUser.user.is_builder?
+      return if uploader == CurrentUser.user || CurrentUser.user.is_builder?
 
       changed_tags = added_tags + removed_tags
 
