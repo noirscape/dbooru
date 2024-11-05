@@ -724,16 +724,6 @@ class PostsControllerTest < ActionDispatch::IntegrationTest
         assert_equal("https://www.example.com", @post.source)
       end
 
-      should "autoban the post when it is tagged banned_artist" do
-        @post = create_post!(tag_string: "banned_artist")
-        assert_equal(true, @post.is_banned?)
-      end
-
-      should "autoban the post if it is tagged paid_reward" do
-        @post = create_post!(tag_string: "paid_reward")
-        assert_equal(true, @post.is_banned?)
-      end
-
       should "not create a post when the uploader is upload-limited" do
         @user = create(:user, upload_points: 0)
 

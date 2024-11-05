@@ -102,30 +102,7 @@ class ForumPost < ApplicationRecord
   end
 
   def validate_body
-    if dtext_body.block_emoji_names.count > MAX_LARGE_EMOJI
-      errors.add(:base, "Can't include more than #{MAX_LARGE_EMOJI} #{"sticker".pluralize(MAX_LARGE_EMOJI)}")
-    end
-
-    if dtext_body.inline_emoji_names.count > MAX_SMALL_EMOJI
-      errors.add(:base, "Can't include more than #{MAX_SMALL_EMOJI} #{"emoji".pluralize(MAX_SMALL_EMOJI)}")
-    end
-
-    if dtext_body.embedded_media.count > MAX_IMAGES
-      errors.add(:base, "Can't include more than #{MAX_IMAGES} #{"image".pluralize(MAX_IMAGES)}")
-      return # don't check the actual images if the user included too many images
-    end
-
-    if dtext_body.embedded_posts.any? { _1.is_video? && _1.file_size > MAX_VIDEO_SIZE } || dtext_body.embedded_media_assets.any? { _1.is_video? && _1.file_size > MAX_VIDEO_SIZE }
-      errors.add(:base, "Can't include videos larger than #{MAX_VIDEO_SIZE.to_fs(:human_size)}")
-    end
-
-    if dtext_body.embedded_posts.any? { |embedded_post| embedded_post.rating != "g" }
-      errors.add(:base, "Can't post non-rating:G images")
-    end
-
-    if dtext_body.embedded_media_assets.any? { |embedded_asset| embedded_asset.ai_rating.first.in?(%w[q e]) }
-      errors.add(:base, "Can't post non-rating:G images")
-    end
+    nil
   end
 
   def autoreport_spam
