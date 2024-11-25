@@ -181,6 +181,13 @@ Blacklist.post_match = function(post, entry) {
     tags.push("status:" + v);
   });
 
+  if ($post.hasClass("post-status-has-parent")) {
+    tags.push("parent:any");
+  }
+  if ($post.hasClass("post-status-has-children")) {
+    tags.push("child:any");
+  }
+
   return (Utility.is_subset(tags, entry.require) && score_test)
     && (!entry.optional.length || Utility.intersect(tags, entry.optional).length)
     && !Utility.intersect(tags, entry.exclude).length;
