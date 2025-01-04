@@ -204,6 +204,19 @@ services:
   autotagger:
     image: ghcr.io/danbooru/autotagger:latest
 
+  tailscale:
+    image: tailscale/tailscale
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      TS_AUTHKEY: ${TAILSCALE_AUTHKEY}
+      TS_OUTBOUND_HTTP_PROXY_LISTEN: "tailscale:1055"
+      TS_STATE_DIR: "/var/lib/tailscale"
+      TS_EXTRA_ARGS: "--exit-node ${TAILSCALE_EXIT_NODE}"
+    volumes:
+      - "tailscale-state:/var/lib/tailscale"
+
 configs:
   danbooru_local_config:
     file: config/danbooru_local_config.rb
@@ -234,3 +247,10 @@ volumes:
       type: none
       o: bind
       device: ${DANBOORU_STORAGE_PATH}/images
+  tailscale-state:
+    name: ${COMPOSE_PROJECT_NAME}-tailscale-state
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DANBOORU_STORAGE_PATH}/tailscale-state
